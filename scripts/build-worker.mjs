@@ -4,7 +4,7 @@ const root = new URL('../', import.meta.url);
 const dist = new URL('dist/', root);
 await mkdir(dist, { recursive: true });
 
-const sources = ['worker.mjs', 'stock.mjs', 'calendar.mjs'];
+const sources = ['worker.mjs', 'stock.mjs', 'calendar.mjs', 'auth.mjs', 'reasons.mjs'];
 await Promise.all(sources.map(name => copyFile(new URL(`src/${name}`, root), new URL(name, dist))));
 
 const staticFiles = {
@@ -31,9 +31,17 @@ const ASSETS = { fetch(request) {
     headers: {
       'Content-Type': file.type,
       'X-Content-Type-Options': 'nosniff',
-      'Content-Security-Policy': "default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+      'Content-Security-Policy': "default-src 'self'; frame-src https://www.openstreetmap.org; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
     },
   });
 } };
-export default { fetch: (request, env) => worker.fetch(request, { DB: env.DB, ASSETS }) };
+export default {
+  fetch: (request, env) => worker.fetch(request, {
+    ASSETS,
+    DB: env.DB,
+    SESSION_SECRET: env.SESSION_SECRET,
+    DEMO_OPERATOR_PASSWORD: env.DEMO_OPERATOR_PASSWORD,
+    DEMO_SUPERVISOR_PASSWORD: env.DEMO_SUPERVISOR_PASSWORD,
+  }),
+};
 `);

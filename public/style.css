@@ -193,3 +193,21 @@ dialog::backdrop { background: #172a48a1; }
   .nav-link { padding-inline: 4px; }
 }
 .dialog-lot-field { margin-bottom: 14px; }
+.login { grid-column: 1 / -1; min-height: 100dvh; display: grid; place-items: center; padding: 18px; }
+.login-form { display: grid; gap: 8px; padding: 24px; width: min(100%, 380px); }
+.login-form h1 { margin-bottom: 12px; }
+.login-form label { color: var(--blue-dark); font-size: .83rem; font-weight: 650; }
+.login-form input, .login-form button { margin-bottom: 6px; }
+.session-controls { display: flex; gap: 8px; align-items: center; }
+.reason-panel { margin-top: 16px; }
+.reason-form { display: flex; gap: 8px; padding: 0 16px; flex-wrap: wrap; }
+.reason-form input { width: min(100%, 290px); }
+.reason-panel .message { margin: 12px 16px; }
+.reasons-list { padding: 0 16px; list-style: none; }
+.reasons-list li { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--border); padding: 6px 0; }
+.reasons-list span { flex: 1; overflow-wrap: anywhere; }
+.depot-map { margin: 12px 16px; font-size: .83rem; }
+.depot-map summary { color: var(--blue-dark); cursor: pointer; }
+.depot-map iframe { display: block; width: 100%; min-height: 190px; margin-top: 8px; border: 1px solid var(--border); }
+#available { margin-bottom: 12px; }
+.dialog-footer { flex-wrap: wrap; }

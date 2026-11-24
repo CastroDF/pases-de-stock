@@ -61,20 +61,94 @@ test('un fallo al escribir el ingreso revierte el encabezado y el egreso', async
   assert.equal((await readStock(binding, workspace)).passes.length, 0);
 });
 
-test('el panel crea una sesión y la API confirma el pase solo desde el mismo origen', async () => {
-  const { binding } = openDatabase();
+function api(binding) {
   const base = 'https://stock.test';
-  const get = await worker.fetch(new Request(base + '/api/stock'), { DB: binding });
-  assert.equal(get.status, 200);
-  const cookie = get.headers.get('Set-Cookie');
-  assert.match(cookie, /HttpOnly; SameSite=Strict; Max-Age=604800; Secure/);
-  const body = JSON.stringify(input());
-  const post = origin => worker.fetch(new Request(base + '/api/passes', {
-    method: 'POST', headers: { Origin: origin, Cookie: cookie.split(';')[0], 'Content-Type': 'application/json' }, body,
-  }), { DB: binding });
-  assert.equal((await post('https://other.test')).status, 403);
-  assert.equal((await post(base)).status, 201);
-  assert.equal((await post(base)).status, 200);
+  const env = {
+    DB: binding, SESSION_SECRET: 'test-secret-only-for-ephemeral-sqlite',
+    DEMO_OPERATOR_PASSWORD: 'operator-test', DEMO_SUPERVISOR_PASSWORD: 'supervisor-test',
+  };
+  const request = (path, { method = 'GET', cookie, data, origin = base } = {}) => worker.fetch(
+    new Request(base + path, {
+      method, headers: { Origin: origin, ...(cookie ? { Cookie: cookie } : {}),
+        ...(data ? { 'Content-Type': 'application/json' } : {}) },
+      body: data ? JSON.stringify(data) : undefined,
+    }), env);
+  const login = async role => {
+    const response = await request('/api/login', { method: 'POST', data: {
+      username: role, password: role === 'operador' ? env.DEMO_OPERATOR_PASSWORD : env.DEMO_SUPERVISOR_PASSWORD,
+    } });
+    assert.equal(response.status, 200);
+    const cookie = response.headers.get('Set-Cookie');
+    assert.match(cookie, /HttpOnly; SameSite=Strict; Secure/);
+    return cookie.split(';')[0];
+  };
+  return { request, login };
+}
+
+test('login, control de rol y confirmación del pase por API', async () => {
+  const { binding } = openDatabase();
+  const { request, login } = api(binding);
+  assert.equal((await request('/api/stock')).status, 401);
+  assert.equal((await request('/api/login', { method: 'POST', data: { username: 'operador', password: 'incorrecta' } })).status, 401);
+  const operator = await login('operador');
+  const supervisor = await login('supervisor');
+  const body = input({ reasonId: 'compra' });
+  const post = (cookie, origin) => request('/api/passes', { method: 'POST', cookie, origin, data: body });
+  assert.equal((await post(supervisor)).status, 403);
+  const before = await (await request('/api/stock', { cookie: supervisor })).json();
+  assert.equal(before.passes.length, 0);
+  assert.equal((await post(operator, 'https://other.test')).status, 403);
+  assert.equal((await post(operator)).status, 201);
+  assert.equal((await post(operator)).status, 200);
+  const after = await (await request('/api/stock', { cookie: supervisor })).json();
+  assert.equal(after.passes[0].reasonName, 'Compra');
+  assert.deepEqual(after.stock.filter(item => item.lotId === 'L-0101').map(item => item.kilos), [300, 600, 0]);
+});
+
+test('consulta de disponibilidad distingue entrada inválida, falta de saldo y éxito sin registrar un pase', async () => {
+  const { binding } = openDatabase();
+  const { request, login } = api(binding);
+  const cookie = await login('operador');
+  const endpoint = '/api/passes/availability?lot=L-0101&origin=alfa&kilos=';
+  const invalid = await request(endpoint + 'abc', { cookie });
+  assert.equal(invalid.status, 400);
+  assert.equal((await invalid.json()).error, 'INVALID_INPUT');
+  const conflict = await request(endpoint + '801', { cookie });
+  assert.equal(conflict.status, 409);
+  assert.equal((await conflict.json()).error, 'INSUFFICIENT_STOCK');
+  assert.deepEqual(await (await request(endpoint + '500', { cookie })).json(), { available: 800 });
+  assert.equal((await (await request('/api/stock', { cookie })).json()).passes.length, 0);
+});
+
+test('Supervisión administra motivos y la base conserva las referencias de los pases', async () => {
+  const { binding } = openDatabase();
+  const { request, login } = api(binding);
+  const operator = await login('operador');
+  const supervisor = await login('supervisor');
+  const data = { name: 'Ajuste de contrato' };
+  assert.equal((await request('/api/reasons', { method: 'POST', cookie: operator, data })).status, 403);
+  const created = await request('/api/reasons', { method: 'POST', cookie: supervisor, data });
+  assert.equal(created.status, 201);
+  const { id } = await created.json();
+  const url = `/api/reasons/${id}`;
+  const updated = await request(url, { method: 'PUT', cookie: supervisor, data: { name: 'Contrato actualizado' } });
+  assert.deepEqual(await updated.json(), { id, name: 'Contrato actualizado' });
+  const reasons = await (await request('/api/reasons', { cookie: operator })).json();
+  assert.ok(reasons.some(reason => reason.id === id));
+  assert.equal((await request(url, { method: 'DELETE', cookie: supervisor })).status, 204);
+  assert.equal((await request('/api/passes', { method: 'POST', cookie: operator, data: input({ reasonId: 'compra' }) })).status, 201);
+  assert.equal((await request('/api/reasons/compra', { method: 'DELETE', cookie: supervisor })).status, 409);
+});
+
+test('dos sesiones contra el mismo saldo reciben una confirmación y un conflicto HTTP', async () => {
+  const { binding } = openDatabase();
+  const { request, login } = api(binding);
+  const cookies = await Promise.all([login('operador'), login('operador')]);
+  assert.notEqual(cookies[0], cookies[1]);
+  const results = await Promise.all(cookies.map(cookie =>
+    request('/api/passes', { method: 'POST', cookie, data: input() })));
+  assert.deepEqual(results.map(response => response.status).sort(), [201, 409]);
+  assert.equal((await results.find(response => response.status === 409).json()).error, 'INSUFFICIENT_STOCK');
 });
 
 test('el calendario salta el fin de semana y los feriados nacionales', async () => {

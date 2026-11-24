@@ -10,7 +10,7 @@
 </head>
 <body>
   <a class="skip" href="#pases">Ir al contenido</a>
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar" hidden>
     <div class="brand">
       <div class="brand-mark">
         <svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h14m-4-4 4 4-4 4M19 17H5m4-4-4 4 4 4"/></svg>
@@ -30,11 +30,24 @@
     </nav>
   </aside>
 
-  <div class="workspace">
+  <main class="login" id="login">
+    <form class="panel login-form" id="login-form">
+      <h1>Control de stock</h1>
+      <label for="username">Usuario</label><input id="username" autocomplete="username" maxlength="40" required>
+      <label for="password">Contraseña</label><input id="password" type="password" autocomplete="current-password" maxlength="128" required>
+      <button class="primary" type="submit" id="sign-in">Ingresar</button>
+      <p class="message" id="login-message" role="alert" hidden></p>
+    </form>
+  </main>
+
+  <div class="workspace" id="workspace" hidden>
     <header class="top">
       <div class="top-inner">
         <p class="breadcrumb">Operación <span aria-hidden="true">/</span> <strong>Pases de stock</strong></p>
-        <span class="demo"><span class="demo-dot" aria-hidden="true"></span> Datos ficticios</span>
+        <div class="session-controls">
+          <span class="demo" id="current-role"></span>
+          <button type="button" class="secondary" id="logout">Cerrar sesión</button>
+        </div>
       </div>
     </header>
 
@@ -59,7 +72,7 @@
         </div>
         <div class="metric">
           <span class="metric-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h14m-4-4 4 4-4 4M19 17H5m4-4-4 4 4 4"/></svg></span>
-          <div><span class="metric-name">Pases recientes</span><strong id="pass-count">—</strong><span>En esta sesión</span></div>
+          <div><span class="metric-name">Pases recientes</span><strong id="pass-count">—</strong><span>Datos ficticios</span></div>
         </div>
         <div class="metric">
           <span class="metric-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M7.5 3.5v4m9-4v4M4 10.5h16"/></svg></span>
@@ -70,7 +83,7 @@
       <div class="panels">
         <section class="panel history" aria-labelledby="history-title">
           <div class="panel-heading">
-            <div><h2 id="history-title">Historial de pases</h2><p>Últimos 25 pases de esta sesión</p></div>
+            <div><h2 id="history-title">Historial de pases</h2><p>Últimos 25 pases confirmados</p></div>
             <label class="search">
               <span class="sr-only">Buscar pase</span>
               <svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4 4"/></svg>
@@ -79,7 +92,7 @@
           </div>
           <div class="table-scroll" id="history-table">
             <table aria-label="Pases confirmados">
-              <thead><tr><th scope="col">Número</th><th scope="col">Fecha</th><th scope="col">Origen</th><th scope="col">Destino</th><th scope="col">Lote</th><th scope="col" class="number">Kilos</th></tr></thead>
+              <thead><tr><th scope="col">Número</th><th scope="col">Fecha</th><th scope="col">Origen</th><th scope="col">Destino</th><th scope="col">Lote</th><th scope="col">Motivo</th><th scope="col" class="number">Kilos</th></tr></thead>
               <tbody id="passes"></tbody>
             </table>
           </div>
@@ -98,8 +111,24 @@
               <tbody id="balances"></tbody>
             </table>
           </div>
+          <details id="depot-map" class="depot-map">
+            <summary>Mapa del depósito</summary>
+            <p class="hint">Ubicación ilustrativa en Rosario.</p>
+            <iframe title="Ubicación ilustrativa del depósito en OpenStreetMap" id="map-frame" loading="lazy" referrerpolicy="no-referrer"></iframe>
+          </details>
         </section>
       </div>
+      <section id="reason-panel" class="panel reason-panel" aria-labelledby="reason-title" hidden>
+        <div class="panel-heading"><h2 id="reason-title">Motivos de pase</h2></div>
+        <form id="reason-form" class="reason-form">
+          <label for="reason-name" class="sr-only">Nombre del motivo</label>
+          <input id="reason-name" placeholder="Nombre del motivo" minlength="2" maxlength="60" required>
+          <button type="submit" class="primary" id="save-reason">Agregar motivo</button>
+          <button type="button" class="secondary" id="cancel-reason" hidden>Cancelar</button>
+        </form>
+        <div id="reasons-message" class="message" role="alert" hidden></div>
+        <ul id="reasons-list" class="reasons-list"></ul>
+      </section>
     </main>
   </div>
 
@@ -120,10 +149,13 @@
         <label for="kilos">Cantidad en kg</label>
         <input id="kilos" name="kilos" type="number" inputmode="numeric" min="1" max="1000000" step="1" required aria-describedby="available">
         <p class="hint" id="available"></p>
+        <div class="dialog-lot-field"><label for="pass-reason">Motivo</label><select id="pass-reason" required></select></div>
         <div id="form-message" class="message" role="alert" hidden></div>
+        <p id="preview-message" class="hint" role="status" hidden></p>
       </div>
       <footer class="dialog-footer">
         <button type="button" class="secondary" id="cancel-pass">Cancelar</button>
+        <button type="button" class="secondary" id="preview-pass">Consultar disponibilidad</button>
         <button type="submit" class="primary" id="confirm" disabled>Confirmar pase</button>
       </footer>
     </form>

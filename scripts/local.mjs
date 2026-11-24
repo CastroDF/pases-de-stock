@@ -18,7 +18,7 @@ const server = createServer(async (req, res) => {
     const request = new Request(new URL(req.url ?? '/', origin), {
       method, headers, ...(method === 'GET' || method === 'HEAD' ? {} : { body: req, duplex: 'half' }),
     });
-    const response = await worker.fetch(request, { DB: binding, ASSETS: {
+    const response = await worker.fetch(request, { ...process.env, DB: binding, ASSETS: {
       async fetch(input) {
         const item = assets.get(new URL(input.url).pathname);
         if (!item) return new Response('No encontrado', { status: 404 });

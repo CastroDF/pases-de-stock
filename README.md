@@ -12,16 +12,22 @@ Requiere Node.js 22.13 o posterior. No hay dependencias que instalar.
 
 ```sh
 npm test
-npm run dev
+SESSION_SECRET="$(openssl rand -hex 32)" \
+  DEMO_OPERATOR_PASSWORD='operador-local' \
+  DEMO_SUPERVISOR_PASSWORD='supervisor-local' npm run dev
 ```
 
-Abrí [el panel local](http://127.0.0.1:4123). El servidor usa SQLite local y el mismo código de aplicación que el Worker. Cada navegador recibe una sesión independiente para operar sobre los saldos ficticios.
+Abrí [el panel local](http://127.0.0.1:4123). Usá `operador` para consultar y confirmar un pase, o `supervisor` para consultar y administrar los motivos de pase. El servidor usa SQLite local y el mismo código de aplicación que el Worker. Las dos cuentas ven el mismo stock ficticio con permisos distintos.
+
+El flujo principal va desde la consulta de disponibilidad hasta el pase confirmado, con egreso e ingreso en un mismo depósito. Supervisión administra el catálogo de motivos y consulta el pase en el historial. El lote y su titular forman una relación muchos a muchos por `opening_balances`. Un pase tiene dos movimientos y un motivo puede estar asociado a varios pases.
+
+`GET /api/passes/availability` recibe `lot`, `origin` y `kilos`. Devuelve `available` con 200, `INVALID_INPUT` con 400, `UNKNOWN_LOT` con 404 e `INSUFFICIENT_STOCK` con 409. Es una consulta. El registro del pase vuelve a comprobar el saldo en la base en el momento de escribir.
 
 ## Arquitectura
 
 - Panel HTML, CSS y JavaScript. Consulta stock, confirma pases y muestra el historial.
-- API JSON en Cloudflare Workers. Valida datos, separa sesiones y permite reintentar una confirmación sin duplicarla.
-- Cloudflare D1. La migración crea los lotes de ejemplo y asegura que el egreso y el ingreso se registren juntos.
-- Nager.Date. Informa el próximo día hábil de revisión según el calendario argentino. El pase funciona aunque la consulta al calendario falle.
+- API JSON en Cloudflare Workers. Verifica el rol con una cookie de sesión firmada, valida datos y permite reintentar una confirmación sin duplicarla.
+- Cloudflare D1. Las migraciones crean los lotes y los motivos de ejemplo. La base asegura que el egreso y el ingreso se registren juntos y que el saldo no quede negativo.
+- Nager.Date informa el próximo día hábil de revisión. OpenStreetMap muestra la ubicación ilustrativa del depósito cuando se abre el mapa. Ambos son complementarios al pase.
 
-`npm run build` genera en `dist/` los módulos del Worker y los tres archivos del panel como recursos embebidos. Para otro despliegue, aplicá `migrations/0001_stock.sql` en una D1 nueva, cargá los módulos con `site.mjs` como entrada y asigná la base al binding `DB`. La integración continua de GitHub ejecuta `npm test` en cada push y pull request. La publicación en Cloudflare es manual.
+`npm run build` genera en `dist/` los módulos del Worker y los tres archivos del panel como recursos embebidos. En una D1 nueva aplicá ambas migraciones en orden y configurá el binding `DB`. Al actualizar una D1 que ya tiene la primera migración, aplicá solo `0002_pass_reasons.sql`. Cargá los módulos con `site.mjs` como entrada. Configurá `SESSION_SECRET` (32 caracteres o más), `DEMO_OPERATOR_PASSWORD` y `DEMO_SUPERVISOR_PASSWORD` como secretos de Cloudflare. Usá contraseñas de prueba distintas de las locales. La integración continua de GitHub ejecuta `npm test` en cada push y pull request. La publicación en Cloudflare es manual.

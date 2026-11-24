@@ -7,6 +7,9 @@ export function openDatabase(path = ':memory:') {
   if (!db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'holders'").get()) {
     db.exec(readFileSync(new URL('../migrations/0001_stock.sql', import.meta.url), 'utf8'));
   }
+  if (!db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pass_reasons'").get()) {
+    db.exec(`BEGIN;\n${readFileSync(new URL('../migrations/0002_pass_reasons.sql', import.meta.url), 'utf8')}\nCOMMIT;`);
+  }
   return {
     db,
     binding: {
