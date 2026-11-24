@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Pases de stock</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#principal">Ir al contenido</a>
+  <header class="top">
+    <div class="wrap top-inner">
+      <div class="brand"><span class="brand-icon" aria-hidden="true">⇄</span><span>Pases de stock</span></div>
+      <span class="demo">Datos de demostración</span>
+    </div>
+  </header>
+  <main class="wrap" id="principal">
+    <div class="intro">
+      <div><h1>Stock por titular</h1><p id="stock-location">Elegí un lote para consultar su saldo.</p></div>
+      <div class="lot-control"><label for="lot">Lote</label><select id="lot" disabled></select></div>
+    </div>
+    <section class="summary" aria-label="Stock del lote">
+      <div><span>Stock físico</span><strong id="lot-total">—</strong></div>
+      <div><span>Depósito</span><strong id="depot">—</strong></div>
+      <div><span>Próximo día hábil de revisión</span><strong id="calendar">Consultando…</strong></div>
+    </section>
+    <div class="columns">
+      <section class="card" aria-labelledby="balances-title">
+        <h2 id="balances-title">Saldos del lote</h2>
+        <div class="table-scroll"><table aria-label="Saldos por titular">
+          <thead><tr><th scope="col">Titular</th><th scope="col" class="number">Disponible</th></tr></thead>
+          <tbody id="balances"></tbody>
+        </table></div>
+      </section>
+      <section class="card" aria-labelledby="transfer-title">
+        <h2 id="transfer-title">Nuevo pase</h2>
+        <form id="pass-form">
+          <div class="form-row"><div><label for="origin">Origen</label><select id="origin" required></select></div>
+            <div><label for="destination">Destino</label><select id="destination" required></select></div></div>
+          <label for="kilos">Cantidad en kg</label>
+          <input id="kilos" name="kilos" type="number" inputmode="numeric" min="1" max="1000000" step="1" required aria-describedby="available">
+          <p class="hint" id="available"></p>
+          <div id="form-message" class="message" role="alert" hidden></div>
+          <button type="submit" id="confirm" disabled>Confirmar pase</button>
+        </form>
+      </section>
+    </div>
+    <section class="card history" aria-labelledby="history-title">
+      <div class="heading-row"><h2 id="history-title">Movimientos registrados</h2><span class="hint">Últimos 25 pases de esta sesión</span></div>
+      <p id="empty" class="empty">Todavía no hay pases confirmados.</p>
+      <div class="table-scroll" id="history-table" hidden>
+        <table aria-label="Pases confirmados">
+          <thead><tr><th scope="col">Comprobante</th><th scope="col">Lote</th><th scope="col">Origen</th><th scope="col">Destino</th><th scope="col" class="number">Cantidad</th><th scope="col">Fecha</th></tr></thead>
+          <tbody id="passes"></tbody>
+        </table>
+      </div>
+    </section>
+    <p id="notice" class="sr-only" role="status" aria-live="polite"></p>
+  </main>
+  <footer class="wrap">Demo académica · Datos ficticios · Saldos separados por navegador</footer>
+</body>
+</html>
