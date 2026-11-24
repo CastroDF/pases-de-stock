@@ -4,61 +4,129 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>Pases de stock</title>
+  <title>Pases de stock · Control de stock</title>
   <link rel="stylesheet" href="./style.css">
   <script type="module" src="./app.js"></script>
 </head>
 <body>
-  <a class="skip" href="#principal">Ir al contenido</a>
-  <header class="top">
-    <div class="wrap top-inner">
-      <div class="brand"><span class="brand-icon" aria-hidden="true">⇄</span><span>Pases de stock</span></div>
-      <span class="demo">Datos de demostración</span>
-    </div>
-  </header>
-  <main class="wrap" id="principal">
-    <div class="intro">
-      <div><h1>Stock por titular</h1><p id="stock-location">Elegí un lote para consultar su saldo.</p></div>
-      <div class="lot-control"><label for="lot">Lote</label><select id="lot" disabled></select></div>
-    </div>
-    <section class="summary" aria-label="Stock del lote">
-      <div><span>Stock físico</span><strong id="lot-total">—</strong></div>
-      <div><span>Depósito</span><strong id="depot">—</strong></div>
-      <div><span>Próximo día hábil de revisión</span><strong id="calendar">Consultando…</strong></div>
-    </section>
-    <div class="columns">
-      <section class="card" aria-labelledby="balances-title">
-        <h2 id="balances-title">Saldos del lote</h2>
-        <div class="table-scroll"><table aria-label="Saldos por titular">
-          <thead><tr><th scope="col">Titular</th><th scope="col" class="number">Disponible</th></tr></thead>
-          <tbody id="balances"></tbody>
-        </table></div>
-      </section>
-      <section class="card" aria-labelledby="transfer-title">
-        <h2 id="transfer-title">Nuevo pase</h2>
-        <form id="pass-form">
-          <div class="form-row"><div><label for="origin">Origen</label><select id="origin" required></select></div>
-            <div><label for="destination">Destino</label><select id="destination" required></select></div></div>
-          <label for="kilos">Cantidad en kg</label>
-          <input id="kilos" name="kilos" type="number" inputmode="numeric" min="1" max="1000000" step="1" required aria-describedby="available">
-          <p class="hint" id="available"></p>
-          <div id="form-message" class="message" role="alert" hidden></div>
-          <button type="submit" id="confirm" disabled>Confirmar pase</button>
-        </form>
-      </section>
-    </div>
-    <section class="card history" aria-labelledby="history-title">
-      <div class="heading-row"><h2 id="history-title">Movimientos registrados</h2><span class="hint">Últimos 25 pases de esta sesión</span></div>
-      <p id="empty" class="empty">Todavía no hay pases confirmados.</p>
-      <div class="table-scroll" id="history-table" hidden>
-        <table aria-label="Pases confirmados">
-          <thead><tr><th scope="col">Comprobante</th><th scope="col">Lote</th><th scope="col">Origen</th><th scope="col">Destino</th><th scope="col" class="number">Cantidad</th><th scope="col">Fecha</th></tr></thead>
-          <tbody id="passes"></tbody>
-        </table>
+  <a class="skip" href="#pases">Ir al contenido</a>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h14m-4-4 4 4-4 4M19 17H5m4-4-4 4 4 4"/></svg>
       </div>
-    </section>
-    <p id="notice" class="sr-only" role="status" aria-live="polite"></p>
-  </main>
-  <footer class="wrap">Demo académica · Datos ficticios · Saldos separados por navegador</footer>
+      <div class="brand-name">Control de stock</div>
+    </div>
+    <nav aria-label="Operación">
+      <span class="nav-label">Operación</span>
+      <a class="nav-link" href="#pases" aria-current="location">
+        <svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h15m-4-4 4 4-4 4M20 17H5m4-4-4 4 4 4"/></svg>
+        Pases de stock
+      </a>
+      <a class="nav-link" href="#stock">
+        <svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 8.5 4.7v8.6L12 21l-8.5-4.7V7.7L12 3Zm-8.5 4.7L12 12l8.5-4.3M12 12v9"/></svg>
+        Stock por titular
+      </a>
+    </nav>
+  </aside>
+
+  <div class="workspace">
+    <header class="top">
+      <div class="top-inner">
+        <p class="breadcrumb">Operación <span aria-hidden="true">/</span> <strong>Pases de stock</strong></p>
+        <span class="demo"><span class="demo-dot" aria-hidden="true"></span> Datos ficticios</span>
+      </div>
+    </header>
+
+    <main class="content" id="pases" tabindex="-1">
+      <div class="page-heading">
+        <div>
+          <h1>Pases de stock</h1>
+          <p>Transferencias de titularidad por lote</p>
+        </div>
+        <button type="button" id="new-pass" class="primary" disabled>
+          <svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          Nuevo pase
+        </button>
+      </div>
+
+      <div id="notice" class="notice" role="status" hidden></div>
+
+      <section class="metrics" aria-label="Resumen de la operación">
+        <div class="metric">
+          <span class="metric-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 8.5 4.7v8.6L12 21l-8.5-4.7V7.7L12 3Zm-8.5 4.7L12 12l8.5-4.3M12 12v9"/></svg></span>
+          <div><span class="metric-name">Stock físico del lote</span><strong id="lot-total">—</strong><span id="depot">—</span></div>
+        </div>
+        <div class="metric">
+          <span class="metric-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h14m-4-4 4 4-4 4M19 17H5m4-4-4 4 4 4"/></svg></span>
+          <div><span class="metric-name">Pases recientes</span><strong id="pass-count">—</strong><span>En esta sesión</span></div>
+        </div>
+        <div class="metric">
+          <span class="metric-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M7.5 3.5v4m9-4v4M4 10.5h16"/></svg></span>
+          <div><span class="metric-name">Próxima revisión hábil</span><strong id="calendar">Consultando…</strong><span>Calendario argentino</span></div>
+        </div>
+      </section>
+
+      <div class="panels">
+        <section class="panel history" aria-labelledby="history-title">
+          <div class="panel-heading">
+            <div><h2 id="history-title">Historial de pases</h2><p>Últimos 25 pases de esta sesión</p></div>
+            <label class="search">
+              <span class="sr-only">Buscar pase</span>
+              <svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4 4"/></svg>
+              <input id="search" type="search" placeholder="Buscar pase" autocomplete="off">
+            </label>
+          </div>
+          <div class="table-scroll" id="history-table">
+            <table aria-label="Pases confirmados">
+              <thead><tr><th scope="col">Número</th><th scope="col">Fecha</th><th scope="col">Origen</th><th scope="col">Destino</th><th scope="col">Lote</th><th scope="col" class="number">Kilos</th></tr></thead>
+              <tbody id="passes"></tbody>
+            </table>
+          </div>
+          <div id="empty" class="empty">
+            <div class="empty-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M7 3.5h7l4 4v13H6v-17h1Zm7 0v5h4M9 12h6m-6 4h6"/></svg></div>
+            <p id="empty-message" role="status">Cargando pases…</p>
+          </div>
+        </section>
+
+        <section id="stock" class="panel stock" tabindex="-1" aria-labelledby="balances-title">
+          <div class="panel-heading"><div><h2 id="balances-title">Stock por titular</h2><p id="stock-location">Consultando el lote…</p></div></div>
+          <div class="lot-field"><label for="lot">Lote</label><select id="lot" disabled></select></div>
+          <div class="table-scroll">
+            <table aria-label="Saldos por titular">
+              <thead><tr><th scope="col">Titular</th><th scope="col" class="number">Disponible</th></tr></thead>
+              <tbody id="balances"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="pass-dialog" aria-labelledby="transfer-title">
+    <form id="pass-form">
+      <header class="dialog-heading">
+        <div><h2 id="transfer-title">Nuevo pase</h2><p id="dialog-lot"></p></div>
+        <button type="button" class="icon-button" id="close-dialog" aria-label="Cerrar">
+          <svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+      </header>
+      <div class="dialog-body">
+        <div class="dialog-lot-field"><label for="pass-lot">Lote del pase</label><select id="pass-lot" required autofocus></select></div>
+        <div class="form-row">
+          <div><label for="origin">Cliente origen</label><select id="origin" required></select></div>
+          <div><label for="destination">Cliente destino</label><select id="destination" required></select></div>
+        </div>
+        <label for="kilos">Cantidad en kg</label>
+        <input id="kilos" name="kilos" type="number" inputmode="numeric" min="1" max="1000000" step="1" required aria-describedby="available">
+        <p class="hint" id="available"></p>
+        <div id="form-message" class="message" role="alert" hidden></div>
+      </div>
+      <footer class="dialog-footer">
+        <button type="button" class="secondary" id="cancel-pass">Cancelar</button>
+        <button type="submit" class="primary" id="confirm" disabled>Confirmar pase</button>
+      </footer>
+    </form>
+  </dialog>
 </body>
 </html>

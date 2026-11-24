@@ -1,10 +1,19 @@
-const $ = id => document.getElementById(id);
-const ui = Object.fromEntries(['lot','lot-total','depot','calendar','balances','stock-location','pass-form',
-  'origin','destination','kilos','available','form-message','confirm','passes','history-table','empty','notice'].map(id => [id,$(id)]));
+const elementIds = [
+  'lot', 'lot-total', 'depot', 'calendar', 'balances', 'stock-location', 'pass-form',
+  'origin', 'destination', 'kilos', 'available', 'form-message', 'confirm', 'passes',
+  'empty', 'empty-message', 'notice', 'pass-count', 'search', 'new-pass', 'pass-dialog',
+  'close-dialog', 'cancel-pass', 'dialog-lot', 'pass-lot',
+];
+const ui = Object.fromEntries(elementIds.map(id => [id, document.getElementById(id)]));
+const dialog = ui['pass-dialog'];
 const number = new Intl.NumberFormat('es-AR');
-const day = new Intl.DateTimeFormat('es-AR',{dateStyle:'medium',timeZone:'UTC'});
-const dateTime = new Intl.DateTimeFormat('es-AR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Argentina/Cordoba'});
-const kilos = amount => `${number.format(amount)} kg`;
+const day = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeZone: 'UTC' });
+const dateTime = new Intl.DateTimeFormat('es-AR', {
+  dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Argentina/Cordoba',
+});
+const kiloText = amount => `${number.format(amount)} kg`;
+const passNumber = id => id.slice(0, 8).toUpperCase();
+const normalized = value => value.toLocaleLowerCase('es-AR').normalize('NFD').replace(/\p{Diacritic}/gu, '');
 let state;
 let submitting = false;
 let repeatable = null;
@@ -16,15 +25,15 @@ async function request(url, options) {
   return result;
 }
 
-function options(select, rows) {
-  const value = select.value;
-  select.replaceChildren(...rows.map(([id, label]) => new Option(label,id)));
-  if (rows.some(([id])=>id===value)) select.value=value;
+function setOptions(select, rows) {
+  const selected = select.value;
+  select.replaceChildren(...rows.map(([id, label]) => new Option(label, id)));
+  if (rows.some(([id]) => id === selected)) select.value = selected;
 }
 
-function row(values, numeric = -1) {
+function row(values, numeric) {
   const element = document.createElement('tr');
-  values.forEach((value,index) => {
+  values.forEach((value, index) => {
     const cell = element.insertCell();
     cell.textContent = value;
     if (index === numeric) cell.className = 'number';
@@ -32,76 +41,150 @@ function row(values, numeric = -1) {
   return element;
 }
 
-function showMessage(message, type) {
-  ui['form-message'].hidden=!message;
-  ui['form-message'].textContent=message;
-  ui['form-message'].dataset.type=type;
+function showMessage(element, message, type = 'error') {
+  element.hidden = !message;
+  element.textContent = message;
+  element.dataset.type = type;
 }
 
 const activeStock = () => state.stock.filter(item => item.lotId === ui.lot.value);
+
 function updateAvailability() {
-  const balance = activeStock().find(x=>x.holderId===ui.origin.value)?.kilos ?? 0;
-  ui.available.textContent=`Disponible en origen: ${kilos(balance)}.`;
+  const balance = activeStock().find(item => item.holderId === ui.origin.value)?.kilos ?? 0;
+  ui.available.textContent = `Disponible en origen: ${kiloText(balance)}.`;
 }
 
 function renderLot() {
   const items = activeStock();
   if (!items.length) return;
-  const names = new Map(state.holders.map(x=>[x.id,x.name]));
-  ui['stock-location'].textContent = `${items[0].lotId} · ${items[0].description}`;
-  ui['lot-total'].textContent=kilos(items.reduce((total,item)=>total+item.kilos,0));
-  ui.depot.textContent=items[0].depot;
-  ui.balances.replaceChildren(...items.map(x=>row([names.get(x.holderId),kilos(x.kilos)],1)));
+  const lot = items[0];
+  const names = new Map(state.holders.map(item => [item.id, item.name]));
+  ui['stock-location'].textContent = `${lot.lotId} · ${lot.description}`;
+  ui['dialog-lot'].textContent = lot.depot;
+  ui['lot-total'].textContent = kiloText(items.reduce((total, item) => total + item.kilos, 0));
+  ui.depot.textContent = lot.depot;
+  ui.balances.replaceChildren(...items.map(item => row([names.get(item.holderId), kiloText(item.kilos)], 1)));
   updateAvailability();
+}
+
+function renderHistory() {
+  const names = new Map(state.holders.map(item => [item.id, item.name]));
+  const query = normalized(ui.search.value.trim());
+  const rows = state.passes.map(pass => [
+    passNumber(pass.id), dateTime.format(new Date(pass.confirmedAt)),
+    names.get(pass.originId), names.get(pass.destinationId), pass.lotId, kiloText(pass.kilos),
+  ]).filter(values => !query || normalized(values.join(' ')).includes(query));
+  ui.passes.replaceChildren(...rows.map(values => row(values, 5)));
+  ui['pass-count'].textContent = number.format(state.passes.length);
+  ui.empty.hidden = rows.length > 0;
+  ui['empty-message'].textContent = state.passes.length
+    ? 'No hay pases que coincidan con la búsqueda.'
+    : 'Todavía no hay pases en esta sesión.';
 }
 
 async function reload() {
   state = await request('/api/stock');
-  const lots = new Map(state.stock.map(x=>[x.lotId,`${x.lotId} · ${x.description}`]));
-  options(ui.lot,[...lots]);
-  const holders = state.holders.map(x=>[x.id,x.name]);
-  const firstLoad = ui.destination.options.length===0;
-  options(ui.origin,holders);
-  options(ui.destination,holders);
-  if(firstLoad) ui.destination.selectedIndex = Math.min(1,holders.length-1);
-  ui.lot.disabled=false;
+  const lots = new Map(state.stock.map(item => [item.lotId, `${item.lotId} · ${item.description}`]));
+  setOptions(ui.lot, [...lots]);
+  setOptions(ui['pass-lot'], [...lots]);
+  ui['pass-lot'].value = ui.lot.value;
+  const holders = state.holders.map(item => [item.id, item.name]);
+  const firstLoad = ui.destination.options.length === 0;
+  setOptions(ui.origin, holders);
+  setOptions(ui.destination, holders);
+  if (firstLoad) ui.destination.selectedIndex = Math.min(1, holders.length - 1);
+  ui.lot.disabled = false;
+  ui['new-pass'].disabled = false;
+  ui.confirm.disabled = submitting;
   renderLot();
-  const names = new Map(holders);
-  ui.passes.replaceChildren(...state.passes.map(p=>row([
-    p.id.slice(0,8).toUpperCase(), p.lotId, names.get(p.originId), names.get(p.destinationId),
-    kilos(p.kilos), dateTime.format(new Date(p.confirmedAt)),
-  ],4)));
-  ui.empty.hidden=state.passes.length>0;
-  ui['history-table'].hidden=!state.passes.length;
-  ui.confirm.disabled=submitting;
+  renderHistory();
 }
 
-ui.lot.addEventListener('change',()=>{ showMessage(''); renderLot(); });
-ui.origin.addEventListener('change',updateAvailability);
-ui['pass-form'].addEventListener('submit',async event=>{
+function setSubmitting(active) {
+  submitting = active;
+  ui.confirm.disabled = active;
+  ui.confirm.textContent = active ? 'Confirmando…' : 'Confirmar pase';
+  ui['close-dialog'].disabled = active;
+  ui['cancel-pass'].disabled = active;
+  for (const control of [ui['pass-lot'], ui.origin, ui.destination, ui.kilos]) {
+    control.disabled = active;
+  }
+}
+
+ui.lot.addEventListener('change', () => {
+  ui['pass-lot'].value = ui.lot.value;
+  renderLot();
+});
+ui['pass-lot'].addEventListener('change', () => {
+  ui.lot.value = ui['pass-lot'].value;
+  showMessage(ui['form-message'], '');
+  renderLot();
+});
+ui.origin.addEventListener('change', updateAvailability);
+ui.search.addEventListener('input', () => { if (state) renderHistory(); });
+
+const navLinks = document.querySelectorAll('.nav-link');
+function highlightLocation() {
+  const hash = location.hash === '#stock' ? '#stock' : '#pases';
+  for (const link of navLinks) {
+    if (link.hash === hash) link.setAttribute('aria-current', 'location');
+    else link.removeAttribute('aria-current');
+  }
+}
+window.addEventListener('hashchange', highlightLocation);
+highlightLocation();
+
+ui['new-pass'].addEventListener('click', () => {
+  showMessage(ui.notice, '');
+  showMessage(ui['form-message'], '');
+  dialog.showModal();
+});
+ui['close-dialog'].addEventListener('click', () => dialog.close());
+ui['cancel-pass'].addEventListener('click', () => dialog.close());
+dialog.addEventListener('cancel', event => { if (submitting) event.preventDefault(); });
+
+ui['pass-form'].addEventListener('submit', async event => {
   event.preventDefault();
   if (submitting || !state) return;
-  const data = {lotId:ui.lot.value, originId:ui.origin.value, destinationId:ui.destination.value, kilos:Number(ui.kilos.value)};
-  const fingerprint=JSON.stringify(data);
-  const requestId=repeatable?.fingerprint===fingerprint ? repeatable.id : crypto.randomUUID();
-  repeatable={fingerprint,id:requestId};
-  submitting=true;
-  ui.confirm.disabled=true;
-  ui.confirm.textContent='Confirmando…';
-  showMessage('');
+  const data = {
+    lotId: ui['pass-lot'].value,
+    originId: ui.origin.value,
+    destinationId: ui.destination.value,
+    kilos: Number(ui.kilos.value),
+  };
+  const fingerprint = JSON.stringify(data);
+  const requestId = repeatable?.fingerprint === fingerprint ? repeatable.id : crypto.randomUUID();
+  repeatable = { fingerprint, id: requestId };
+  setSubmitting(true);
+  showMessage(ui['form-message'], '');
   try {
-    const {pass} = await request('/api/passes',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({...data,requestId})});
-    showMessage(`Pase ${pass.id.slice(0,8).toUpperCase()} confirmado. Se registraron el egreso y el ingreso.`,'success');
-    ui.kilos.value='';
-    try { await reload(); repeatable=null; }
-    catch { ui.notice.textContent='El pase se registró. Recargá la página para ver el saldo actualizado.'; }
-  } catch (error) { showMessage(error.message,'error'); }
-  finally { submitting=false; ui.confirm.disabled=false; ui.confirm.textContent='Confirmar pase'; }
+    const { pass } = await request('/api/passes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...data, requestId }),
+    });
+    const confirmation = `Pase ${passNumber(pass.id)} confirmado.`;
+    ui.kilos.value = '';
+    try {
+      await reload();
+      repeatable = null;
+      showMessage(ui.notice, confirmation, 'success');
+    } catch {
+      showMessage(ui.notice, `${confirmation} Recargá para ver el saldo actualizado.`, 'success');
+    }
+    dialog.close();
+  } catch (error) {
+    showMessage(ui['form-message'], error.message);
+  } finally {
+    setSubmitting(false);
+  }
 });
 
-request('/api/calendar').then(({date})=>{
-  ui.calendar.textContent=date?day.format(new Date(`${date}T12:00:00Z`)):'Calendario no disponible';
-}).catch(()=>ui.calendar.textContent='Calendario no disponible');
+request('/api/calendar').then(({ date }) => {
+  ui.calendar.textContent = date ? day.format(new Date(`${date}T12:00:00Z`)) : 'Sin datos';
+}).catch(() => { ui.calendar.textContent = 'Sin datos'; });
 
-reload().catch(()=>showMessage('No se pudieron cargar los saldos. Recargá la página.','error'));
+reload().catch(() => {
+  ui['empty-message'].textContent = 'No se pudieron cargar los pases.';
+  showMessage(ui.notice, 'No se pudieron cargar los saldos. Recargá la página.');
+});
